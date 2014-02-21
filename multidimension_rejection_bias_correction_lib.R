@@ -92,15 +92,18 @@ NumericAcceptanceProbability <- function(beta, sigma, x.lower, x.upper, t=0.5) {
   #   This function backs this probability out of the full likelihood returned by
   #   dtmvnorm, which is rather a hack and requires an extra likelihood evaluation.
   #   It could probably be done more effeciently.
-  #
-  #   Note that this has been observed empirically to have problems for large dimensions
-  #   (like 20 or above).
   
   # <x> is the point at which we will evaluate the likelihood.  All that matters
   # is that it be within the bounds.  As long as this is the case, the answer
   # will not depend on the particular x you choose.
   stopifnot(t > 0 && t < 1)
   x <- t * x.upper + (1 - t) * x.lower
+  
+  #   This has been observed empirically to have problems for
+  #   any dimension greater than two when the bounds are wide.
+  if (length(beta) > 2) {
+    stop("Sorry, this doesn't seem to work well in dimension > 2.")
+  }
   
   # Each truncated log likelihood will be this value minus the truncation
   # probability.
@@ -149,20 +152,25 @@ NumericConditionalLogLik <- function(x, x.lower, x.upper, beta, sigma) {
   #    <x.lower> to <x.upper>.
   #
   #   This uses NumericAcceptanceProbability to estimate the probability of being
-  #   outside the bounds.  Note that it may have problems in high dimensions (like
-  #   greater than 20).
+  #   outside the bounds.
   
   # The likelihood of any observation being within the bounds is zero.
   if (any(x > x.lower & x < x.upper)) {
     return(-Inf)
   }
   
+  # A bit rude of them not to check this in dmvnorm I think.
+  sigma <- as.matrix(sigma)
+  
   l <- dmvnorm(x=x, mean=beta, sigma=sigma, log=TRUE)
   rejection.prob <- 1 - NumericAcceptanceProbability(beta=beta, sigma=sigma,
                                                      x.lower=x.lower, x.upper=x.upper)
   
   # This can happen if NumericAcceptanceProbability has numeric issues.
-  stopifnot(rejection.prob > 0 && rejection.prob < 1)
+  if (rejection.prob < 0 || rejection.prob > 1) {
+    stop(sprintf("Rejection probability = %f.  This indicates numeric problems.",
+                 rejection.prob))
+  }
   
   # Add 1e-9 to avoid numeric issues.
   log.rejection.prob <- log(rejection.prob + 1e-9)

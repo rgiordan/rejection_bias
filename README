@@ -1,0 +1,48 @@
+This is a simple little library that uses optim and mvtnorm to estimate
+likelihoods conditional on rejection.
+
+Note that currently it _does not work_ for dimension > 2.  You could
+in principle use the simulated methods, but they are slow and unstable.
+
+Suppose you have estimated a beta.hat, and is covariance is
+beta.hat.sigma.  Given this covariance matrix, you have selected
+this beta hat because it is outside of the bounds
+(-beta.hat.lower, beta.hat.upper), where these quantities can be
+vectors, each applying to the corresponding element of beta hat.
+Note that these bounds take into account
+both the p-value of the test and the covariance matrix of your estimate.
+
+To estimate the maximum likelihood of your truncated observation
+and plot the likelihood, you can follow this example.
+
+
+# Code example:
+library(ggplot2)
+source("multidimension_rejection_bias_correction_lib.R")
+
+results <- NumericEstimateTruncatedMean(x=beta.hat,
+                                        sigma=beta.hat.sigma,
+                                        x.lower=beta.hat.lower,
+                                        x.upper=beta.hat.upper,
+                                        verbose=T)
+
+# The output is the output of optim, so
+# results$par contains the maximum likelihood estimate.
+print(results$message)
+print(results$par)
+
+# Plot the likelihood if you like (this is the 1d case).
+grid.values <- seq(-1, beta.hat * 1.5, length.out=500)
+lik.grid <- sapply(grid.values,
+                   function(x) {
+                     NumericConditionalLogLik(x=beta.hat, beta=x,
+                                              x.lower=beta.hat.lower,
+                                              x.upper=beta.hat.upper,
+                                              sigma=beta.hat.sigma)
+                   })
+
+ggplot() + geom_line(aes(x=grid.values, y=exp(lik.grid))) +
+  geom_vline(aes(xintercept=beta.hat), col="blue") +
+  geom_vline(aes(xintercept=beta.hat.upper), color="gray", lwd=2) +
+  geom_vline(aes(xintercept=results$par), color="red")
+  
