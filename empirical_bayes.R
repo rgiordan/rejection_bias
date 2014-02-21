@@ -1,3 +1,6 @@
+# This is a preliminary stab at an empirical Bayes solution and is
+# not yet ready for public consumption.
+
 
 # Normal Log Lik
 NormLogLik <- function(x, m, sigma) {
