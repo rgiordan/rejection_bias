@@ -99,7 +99,11 @@ NumericAcceptanceProbability <- function(beta, sigma, x.lower, x.upper, t=0.5, f
   stopifnot(t > 0 && t < 1)
   x <- t * x.upper + (1 - t) * x.lower
   
-  # The way I've handled the areas only works for d=2
+  # The way I've handled the areas only works for d=2.
+  # TODO: Think of this as
+  # P((x1 < l1 | x1 > u2) & (x2 < l2 | x2 > u2) & ...)
+  # and expand the union.
+  
   if (length(beta) > 2 && !force) {
     stop("Sorry, this doesn't work yet in dimension > 2.")
   }
