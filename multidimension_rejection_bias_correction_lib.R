@@ -74,7 +74,7 @@ SimulatedConditionalLogLik <- function(x, x.sim, x.lower, x.upper, beta, sigma) 
 }
 
 
-NumericAcceptanceProbability <- function(beta, sigma, x.lower, x.upper, t=0.5) {
+NumericAcceptanceProbability <- function(beta, sigma, x.lower, x.upper, t=0.5, force=FALSE) {
   # The probability of at least one multivariate normal draw being within bounds.
   #
   # Args:
@@ -99,26 +99,18 @@ NumericAcceptanceProbability <- function(beta, sigma, x.lower, x.upper, t=0.5) {
   stopifnot(t > 0 && t < 1)
   x <- t * x.upper + (1 - t) * x.lower
   
-  #   This has been observed empirically to have problems for
-  #   any dimension greater than two when the bounds are wide.
-  if (length(beta) > 2) {
-    stop("Sorry, this doesn't seem to work well in dimension > 2.")
+  # The way I've handled the areas only works for d=2
+  if (length(beta) > 2 && !force) {
+    stop("Sorry, this doesn't work yet in dimension > 2.")
   }
-  
-  # Each truncated log likelihood will be this value minus the truncation
-  # probability.
-  base.log.lik <- dtmvnorm(x=x, mean=beta, sigma=sigma, log=TRUE)
-  
+
   k <- length(beta)
   GetLogArea <- function(i) {
     # Return the marginal log probabilty of the i_th component lying within
     # the bounds (x.lower[i], x.upper[i]).
-    lower <- rep(-Inf, k)
-    upper <- rep(Inf, k)
-    lower[i] <- x.lower[i]
-    upper[i] <- x.upper[i]
-    return(base.log.lik - dtmvnorm(x=x, mean=beta, sigma=sigma,
-                                   lower=lower, upper=upper, log=TRUE))
+    base.log.lik <- dtmvnorm(x=x[i], mean=beta[i], sigma=sigma[i, i], log=TRUE)
+    return(base.log.lik - dtmvnorm(x=x[i], mean=beta[i], sigma=sigma[i, i],
+                                   lower=x.lower[i], upper=x.upper[i], log=TRUE))
   }
   
   areas <- exp(sapply(1:k, GetLogArea))
@@ -126,6 +118,7 @@ NumericAcceptanceProbability <- function(beta, sigma, x.lower, x.upper, t=0.5) {
   # This is the area of the intersection of all the hyper-rectangular strips
   # of the individual variables.  This area is counted <k>-1 extra times in
   # <areas>.
+  base.log.lik <- dtmvnorm(x=x, mean=beta, sigma=sigma, log=TRUE)
   joint.area <-  exp(base.log.lik - dtmvnorm(x=x, mean=beta, sigma=sigma,
                                              lower=x.lower, upper=x.upper, log=TRUE))
   total.area <- sum(areas) - (k - 1) * joint.area

@@ -61,7 +61,7 @@ print(results$par)
 
 ############
 # Arbitrary dimension simulation.  This seems broken for d >= 3.
-if (F) {
+if (T) {
   k <- 3
   beta.hat <- rep(2.2, k)
   beta.hat.lower <- rep(-2, k)
@@ -70,13 +70,12 @@ if (F) {
   z <- runif(k)
   sigma <- 0.1 * z %*% t(z) + diag(1, k)
   
-  x.sim <- rmvnorm(n=1e4, mean=rep(0, k), sigma=sigma)
-  
-  size <- 0.1
-  1 - NumericAcceptanceProbability(beta=rep(0, k), sigma=sigma, x.lower=rep(-size, k), x.upper=rep(size, k))
+  x.sim <- rmvnorm(n=1e5, mean=rep(0, k), sigma=sigma)
+  size <- 1.5
+  1 - NumericAcceptanceProbability(beta=rep(0, k), sigma=sigma,
+                                   x.lower=rep(-size, k), x.upper=rep(size, k), force=T)
   SimulatRejectionProb(beta=rep(0, k), x.sim=x.sim, x.lower=rep(-size, k), x.upper=rep(size, k))
-  
-  
+
   results <- NumericEstimateTruncatedMean(x=beta.hat, sigma=sigma,
                                           x.lower=beta.hat.lower,
                                           x.upper=beta.hat.upper, verbose=T)
