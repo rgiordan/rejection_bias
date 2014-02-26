@@ -105,9 +105,8 @@ P(A\cup(B\cap C)) & = & P((A\cup B)\cap(A\cup C))\\
 P(A\cap B\cap C) & = & P(A)+P(B\cap C)-P(A\cup(B\cap C))\\
  & = & P(A)+P(B)+P(C)-P(B\cup C)-P(A\cup(B\cap C))\\
  & = & P(A)+P(B)+P(C)-P(B\cup C)-P((A\cup B)\cap(A\cup C))\\
- & = & P(A)+P(B)+P(C)-P(B\cup C)-\\
- &  & (P(A\cup B)+P(A\cup C)-P(A\cup B\cup C))\\
- & = & P(A)+P(B)+P(C)-P(B\cup C)-P(A\cup B)-P(A\cup C)+P(A\cup B\cup C))
+ & = & P(A)+P(B)+P(C)-P(B\cup C)-(P(A\cup B)+P(A\cup C)-P(A\cup B\cup C))\\
+ & = & P(A)+P(B)+P(C)-P(B\cup C)-P(A\cup B)-P(A\cup C)+P(A\cup B\cup C)
 \end{eqnarray*}
 
 \end_inset

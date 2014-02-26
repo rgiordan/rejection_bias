@@ -56,6 +56,8 @@ SimulatedConditionalLogLik <- function(x, x.sim, x.lower, x.upper, beta, sigma) 
   #    <x.lower> to <x.upper>.
   #
   #   This uses <x.sim> to estimate the probability of being outside the bounds.
+  #
+  # TODO: This could surely benefit greatly from importance sampling.
   
   # The likelihood is zero conditional on an observation not being rejected.
   if (any(x > x.lower & x < x.upper)) {
@@ -74,59 +76,88 @@ SimulatedConditionalLogLik <- function(x, x.sim, x.lower, x.upper, beta, sigma) 
 }
 
 
-NumericAcceptanceProbability <- function(beta, sigma, x.lower, x.upper, t=0.5, force=FALSE) {
-  # The probability of at least one multivariate normal draw being within bounds.
+NumericRejectionProbability <- function(beta, sigma, x.lower, x.upper) {
+  # The probability of all the observations being out of bounds.
   #
   # Args:
   #   beta:    The k-dimensional center of the multivariate normal.
   #   sigma:   The k by k covariance matrix of the multivariate normal.
   #   x.lower: A k-vector of lower bounds for rejecting the kth element.
   #   x.upper: A k-vector of upper bounds for rejecting the kth element.
-  #   t:       Used to select a point within the bounds.  For debugging only.
   #
   # Returns:
   #   A numeric approximation of the probability that a draw from the multivariate
-  #   normal centered at <beta> with covariance <sigma> has at least one component
-  #   between its corresponding <x.lower> and <x.upper>.
+  #   normal centered at <beta> with covariance <sigma> has at least all components
+  #   between their corresponding <x.lower> and <x.upper>.
   #
   #   This function backs this probability out of the full likelihood returned by
   #   dtmvnorm, which is rather a hack and requires an extra likelihood evaluation.
   #   It could probably be done more effeciently.
-  
-  # <x> is the point at which we will evaluate the likelihood.  All that matters
-  # is that it be within the bounds.  As long as this is the case, the answer
-  # will not depend on the particular x you choose.
-  stopifnot(t > 0 && t < 1)
-  x <- t * x.upper + (1 - t) * x.lower
-  
-  # The way I've handled the areas only works for d=2.
-  # TODO: Think of this as
-  # P((x1 < l1 | x1 > u2) & (x2 < l2 | x2 > u2) & ...)
-  # and expand the union.
-  
-  if (length(beta) > 2 && !force) {
-    stop("Sorry, this doesn't work yet in dimension > 2.")
-  }
 
   k <- length(beta)
-  GetLogArea <- function(i) {
-    # Return the marginal log probabilty of the i_th component lying within
-    # the bounds (x.lower[i], x.upper[i]).
-    base.log.lik <- dtmvnorm(x=x[i], mean=beta[i], sigma=sigma[i, i], log=TRUE)
-    return(base.log.lik - dtmvnorm(x=x[i], mean=beta[i], sigma=sigma[i, i],
-                                   lower=x.lower[i], upper=x.upper[i], log=TRUE))
+  
+  if (k > 8) {
+    stop(paste("You probably don't want to run this with dimension > 8.",
+               "The algorithm requires 2^d operations to handle a d-dimensional vector.",
+               "For that, you should consider switching to simulations.",
+               sep="\n"))
   }
   
-  areas <- exp(sapply(1:k, GetLogArea))
+  RecursiveGetRejectionArea <- function(current.lower, current.upper) {
+    # A recursive function that ultimately returns the full rejection area.
+    #
+    # Args:
+    #   current.lower: A vector of lower bounds, possibly incomplete.
+    #   current.upper: A vector of upper bounds, possibly incomplete.
+    #
+    # Other variable usage:
+    #   This function uses x.lower, x.upper, beta, and sigma from the containing
+    #   namespace.
+    #
+    # Returns:
+    #   The area of the rejection region corresponding to the probability that
+    #   all the observations are outside the bounds specified by x.lower and
+    #   x.upper in the containing namespace.
+    #
+    # The rejection region consists of 2^k infinite hyper-rectangles over which
+    # we want to integrate the likelihood.  This function recursively calls
+    # itself to evaluate the areas from (-Inf, x.lower[i]) and (x.upper[i], Inf)
+    # for each combination of i in 1:k.  There will, of course, be 2^k such
+    # area evaluations, so this is prohibitive for even moderate k.  (8 seems
+    # to be a reasonable limit.)
+    #
+    # For large dimensions, simulations are probably better.
+    # If you have better ideas for the analytic soultion I'd love to hear them
+    # (Ryan). 
+    
+    k <- length(current.lower)
+    stopifnot(length(current.lower) == length(current.upper))
+    # If we are at the leaf of the tree, return the probability
+    if (k == length(x.lower)) {
+      # This particular point only needs to be in the desired region, otherwise,
+      # its value doesn't matter.  Note that, for each i, either
+      # current.lower[i] = -Inf or current.upper[i] = Inf.
+      delta <- 0.1 * sqrt(diag(sigma))
+      x <- rep(0, k)
+      finite.lower.bound <- is.finite(current.lower)
+      stopifnot(!any(finite.lower.bound & is.finite(current.upper)))
+      x[finite.lower.bound] <- current.lower[finite.lower.bound] + delta[finite.lower.bound]
+      x[!finite.lower.bound] <- current.upper[!finite.lower.bound] - delta[!finite.lower.bound]
+      
+      base.log.lik <- dtmvnorm(x=x, mean=beta, sigma=sigma, log=TRUE)
+      return(exp(base.log.lik - dtmvnorm(x=x, mean=beta, sigma=sigma,
+                                        lower=current.lower, upper=current.upper,
+                                        log=TRUE)))
+    } else {
+      # Otherwise, proceed down the tree.
+      return(RecursiveGetRejectionArea(current.lower=c(current.lower, x.upper[k + 1]),
+                                       current.upper=c(current.upper, Inf)) +
+             RecursiveGetRejectionArea(current.lower=c(current.lower, -Inf),
+                                       current.upper=c(current.upper, x.lower[k + 1])))
+    }
+  }
   
-  # This is the area of the intersection of all the hyper-rectangular strips
-  # of the individual variables.  This area is counted <k>-1 extra times in
-  # <areas>.
-  base.log.lik <- dtmvnorm(x=x, mean=beta, sigma=sigma, log=TRUE)
-  joint.area <-  exp(base.log.lik - dtmvnorm(x=x, mean=beta, sigma=sigma,
-                                             lower=x.lower, upper=x.upper, log=TRUE))
-  total.area <- sum(areas) - (k - 1) * joint.area
-  return(total.area)
+  return(RecursiveGetRejectionArea(c(), c()))
 }
 
 
@@ -148,7 +179,7 @@ NumericConditionalLogLik <- function(x, x.lower, x.upper, beta, sigma) {
   #    covariance <sigma>, conditional on each <x> being outside the bounds
   #    <x.lower> to <x.upper>.
   #
-  #   This uses NumericAcceptanceProbability to estimate the probability of being
+  #   This uses NumericRejectionProbability to estimate the probability of being
   #   outside the bounds.
   
   # The likelihood of any observation being within the bounds is zero.
@@ -160,10 +191,10 @@ NumericConditionalLogLik <- function(x, x.lower, x.upper, beta, sigma) {
   sigma <- as.matrix(sigma)
   
   l <- dmvnorm(x=x, mean=beta, sigma=sigma, log=TRUE)
-  rejection.prob <- 1 - NumericAcceptanceProbability(beta=beta, sigma=sigma,
-                                                     x.lower=x.lower, x.upper=x.upper)
+  rejection.prob <- NumericRejectionProbability(beta=beta, sigma=sigma,
+                                                x.lower=x.lower, x.upper=x.upper)
   
-  # This can happen if NumericAcceptanceProbability has numeric issues.
+  # This can happen if NumericRejectionProbability has numeric issues.
   if (rejection.prob < 0 || rejection.prob > 1) {
     stop(sprintf("Rejection probability = %f.  This indicates numeric problems.",
                  rejection.prob))

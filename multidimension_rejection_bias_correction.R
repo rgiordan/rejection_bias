@@ -15,12 +15,12 @@ beta.hat.upper <- 2
 sigma <- matrix(0.1)
 
 # Check the area properties. 
-x.sim <- rmvnorm(n=1e4, mean=0, sigma=sigma)
-1 - NumericAcceptanceProbability(beta=0, sigma=sigma, x.lower=beta.hat.lower, x.upper=beta.hat.upper)
+x.sim <- rmvnorm(n=1e5, mean=0, sigma=sigma)
+NumericRejectionProbability(beta=0, sigma=sigma, x.lower=beta.hat.lower, x.upper=beta.hat.upper)
 SimulatRejectionProb(beta=0, x.sim=x.sim, x.lower=beta.hat.lower, x.upper=beta.hat.upper)
 
-size <- 0.05
-1 - NumericAcceptanceProbability(beta=0, sigma=sigma, x.lower=-size, x.upper=size)
+size <- 0.1
+NumericRejectionProbability(beta=0, sigma=sigma, x.lower=-size, x.upper=size)
 SimulatRejectionProb(beta=0, x.sim=x.sim, x.lower=-size, x.upper=size)
 
 # Note that the simulation method is really slow, even in one dimension,
@@ -48,9 +48,10 @@ beta.hat.upper <- rep(2, 2)
 
 z <- runif(2)
 sigma <- z %*% t(z) + diag(0.8, 2)
+x.sim <- rmvnorm(n=1e5, mean=c(0, 0), sigma=sigma)
 
 size <- 0.05
-1 - NumericAcceptanceProbability(beta=c(0, 0), sigma=sigma, x.lower=rep(-size, 2), x.upper=rep(size, 2))
+NumericRejectionProbability(beta=c(0, 0), sigma=sigma, x.lower=rep(-size, 2), x.upper=rep(size, 2))
 SimulatRejectionProb(beta=c(0, 0), x.sim=x.sim, x.lower=rep(-size, 2), x.upper=rep(size, 2))
 
 results <- NumericEstimateTruncatedMean(x=beta.hat, sigma=sigma,
@@ -61,26 +62,25 @@ print(results$par)
 
 ############
 # Arbitrary dimension simulation.  This seems broken for d >= 3.
-if (T) {
-  k <- 3
-  beta.hat <- rep(2.2, k)
-  beta.hat.lower <- rep(-2, k)
-  beta.hat.upper <- rep(2, k)
-  
-  z <- runif(k)
-  sigma <- 0.1 * z %*% t(z) + diag(1, k)
-  
-  x.sim <- rmvnorm(n=1e5, mean=rep(0, k), sigma=sigma)
-  size <- 1.5
-  1 - NumericAcceptanceProbability(beta=rep(0, k), sigma=sigma,
-                                   x.lower=rep(-size, k), x.upper=rep(size, k), force=T)
-  SimulatRejectionProb(beta=rep(0, k), x.sim=x.sim, x.lower=rep(-size, k), x.upper=rep(size, k))
+k <- 4
+beta.hat <- rep(2.2, k)
+beta.hat.lower <- rep(-2, k)
+beta.hat.upper <- rep(2, k)
 
-  results <- NumericEstimateTruncatedMean(x=beta.hat, sigma=sigma,
-                                          x.lower=beta.hat.lower,
-                                          x.upper=beta.hat.upper, verbose=T)
-  print(results$par)
-}
+z <- runif(k)
+sigma <- 0.1 * z %*% t(z) + diag(1, k)
+
+x.sim <- rmvnorm(n=1e5, mean=rep(0, k), sigma=sigma)
+size <- 0.8
+NumericRejectionProbability(beta=rep(0, k), sigma=sigma,
+                                 x.lower=rep(-size, k), x.upper=rep(size, k))
+SimulatRejectionProb(beta=rep(0, k), x.sim=x.sim, x.lower=rep(-size, k), x.upper=rep(size, k))
+
+results <- NumericEstimateTruncatedMean(x=beta.hat, sigma=sigma,
+                                        x.lower=beta.hat.lower,
+                                        x.upper=beta.hat.upper, verbose=T)
+print(results$par)
+
 
 #####################################
 # Simulation with ground truth
